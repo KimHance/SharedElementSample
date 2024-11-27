@@ -6,11 +6,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,9 +34,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.hance.sharedelementsample.ui.theme.SharedElementSampleTheme
 
 class MainActivity : ComponentActivity() {
@@ -50,49 +58,53 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                 ) { innerPadding ->
-                    Box(
-                        Modifier
-                            .fillMaxSize()
+                    SharedTransitionLayout(
+                        modifier = Modifier
                             .padding(innerPadding)
+                            .fillMaxSize()
                     ) {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(30) {
-                                Greeting(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(50.dp)
-                                        .background(Color(0xFF00BCD4), RoundedCornerShape(0.2f)),
-                                    name = "baby"
+                        val navController = rememberNavController()
+                        NavHost(
+                            navController = navController,
+                            startDestination = "home",
+                            enterTransition = {
+                                slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Start,
+                                    tween(700)
+                                )
+                            },
+                            exitTransition = {
+                                slideOutOfContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.Start,
+                                    tween(700)
+                                )
+                            },
+                            popEnterTransition = {
+                                slideIntoContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.End,
+                                    tween(700)
+                                )
+                            },
+                            popExitTransition = {
+                                slideOutOfContainer(
+                                    AnimatedContentTransitionScope.SlideDirection.End,
+                                    tween(700)
                                 )
                             }
-                        }
-                        SharedTransitionLayout(
-                            modifier = Modifier.fillMaxSize()
                         ) {
-                            AnimatedContent(
-                                targetState = showDetails.value,
-                                label = "shared_elements"
-                            ) { targetState ->
-                                if (targetState) {
-
-                                } else {
-                                    AsyncImage(
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.Red)
-                                            .align(Alignment.BottomEnd)
-                                            .clickable {
-                                                showDetails.value = !showDetails.value
-                                            },
-                                        model = Cat,
-                                        contentDescription = null
-                                    )
-                                }
+                            composable("home") {
+                                Home(
+                                    navController = navController,
+                                    animatedVisibilityScope = this@composable,
+                                    sharedTransitionScope = this@SharedTransitionLayout,
+                                )
+                            }
+                            composable("soopi") {
+                                SoopiScreen(
+                                    navController = navController,
+                                    animatedVisibilityScope = this@composable,
+                                    sharedTransitionScope = this@SharedTransitionLayout,
+                                )
                             }
                         }
                     }
@@ -114,16 +126,85 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun Detail(
-    modifier: Modifier = Modifier,
-    onBack: () -> Unit,
+fun Home(
+    navController: NavController,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope,
-    animatedVisibilityScope: AnimatedVisibilityScope
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    with(sharedTransitionScope) {
+        Box {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(30) {
+                    Greeting(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .background(Color(0xFF00BCD4), RoundedCornerShape(0.2f)),
+                        name = "baby"
+                    )
+                }
+            }
+            AsyncImage(
+                modifier = Modifier
+                    .sharedBounds(
+                        rememberSharedContentState(key = Cat),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    )
+                    .clip(CircleShape)
+                    .size(50.dp)
+                    .clickable {
+                        navController.navigate("soopi")
+                    }
+                    .align(Alignment.BottomEnd),
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(Cat)
+                    .crossfade(true)
+                    .memoryCacheKey(Cat)
+                    .build(),
+                contentDescription = null
+            )
+        }
+    }
+}
 
+@Composable
+fun SoopiScreen(
+    navController: NavController,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope,
+) {
+    val isOpen = remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Gray),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        with(sharedTransitionScope) {
+            AsyncImage(
+                modifier = Modifier
+                    .sharedBounds(
+                        rememberSharedContentState(key = Cat),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    )
+                    .clip(CircleShape)
+                    .size(200.dp)
+                    .clickable {
+                        isOpen.value = false
+                        navController.popBackStack()
+                    },
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(Cat)
+                    .crossfade(true)
+                    .memoryCacheKey(Cat)
+                    .build(),
+                contentDescription = null
+            )
+        }
     }
 }
 
